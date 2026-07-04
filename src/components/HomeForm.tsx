@@ -3,7 +3,7 @@
 import type React from "react";
 import clsx from "clsx";
 import type { Vibe } from "@/lib/types";
-import { FOCUS_RING, VIBES } from "@/lib/constants";
+import { FOCUS_RING, PRESET_DESTINATIONS, VIBES } from "@/lib/constants";
 import { VibeChip } from "./VibeChip";
 
 /**
@@ -76,6 +76,32 @@ export function HomeForm(props: {
         <p id="destination-hint" className="mt-1 text-xs text-muted">
           Any city with a story. Max 100 characters.
         </p>
+
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="Suggested cities"
+        >
+          <span className="text-xs uppercase tracking-wider text-muted">
+            Try
+          </span>
+          {PRESET_DESTINATIONS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onDestinationChange(preset)}
+              disabled={loading}
+              className={clsx(
+                "rounded-full border border-border bg-transparent px-3 py-1 text-xs font-semibold text-ink transition-colors",
+                "hover:border-accent hover:text-accent-hover",
+                "disabled:opacity-60",
+                FOCUS_RING
+              )}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
 
         <fieldset className="mt-6">
           <legend className="text-sm font-semibold text-ink">Vibe</legend>

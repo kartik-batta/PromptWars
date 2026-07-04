@@ -212,6 +212,19 @@ describe("Home page", () => {
     expect(screen.getByLabelText(/destination/i)).toBeInTheDocument();
   });
 
+  it("preset destination chips fill the input on click", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    // "Try" label + 4 preset chips are present.
+    expect(screen.getByText(/^try$/i)).toBeInTheDocument();
+    for (const preset of ["Jaipur", "Kyoto", "Lisbon", "Varanasi"]) {
+      expect(screen.getByRole("button", { name: preset })).toBeInTheDocument();
+    }
+
+    await user.click(screen.getByRole("button", { name: "Kyoto" }));
+    expect(screen.getByLabelText(/destination/i)).toHaveValue("Kyoto");
+  });
+
   it("falls back to a friendly error when the fetch call throws a non-Error", async () => {
     const user = userEvent.setup();
     // fetch that rejects with a bare string — exercises the non-Error branch.

@@ -24,3 +24,26 @@ export function vibeLabel(v: Vibe): string {
  */
 export const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+
+/**
+ * Preset destinations offered as one-tap chips. Curated for demo reliability
+ * — cities the LLM produces particularly rich journeys for, spanning
+ * geographies and vibes (heritage-heavy, food-heavy, arts-heavy, spiritual).
+ */
+export const PRESET_DESTINATIONS: readonly string[] = [
+  "Jaipur",
+  "Kyoto",
+  "Lisbon",
+  "Varanasi",
+];
+
+/**
+ * Status messages the loading region cycles through during journey
+ * generation. Ordered from broad ("weaving") to specific ("bringing to
+ * life") so the progression feels like the model is honing in.
+ */
+export const JOURNEY_STATUS_MESSAGES: readonly string[] = [
+  "Weaving your journey",
+  "Uncovering hidden corners",
+  "Bringing the story to life",
+];

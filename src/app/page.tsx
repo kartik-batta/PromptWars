@@ -1,10 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { FOCUS_RING } from "@/lib/constants";
+import { FOCUS_RING, JOURNEY_STATUS_MESSAGES } from "@/lib/constants";
 import { useJourney } from "@/hooks/useJourney";
 import { HomeForm } from "@/components/HomeForm";
 import { JourneyView } from "@/components/JourneyView";
+import { StatusLine } from "@/components/StatusLine";
 
 /**
  * The single page of the Wander app. Orchestrates a {@link useJourney}
@@ -75,7 +76,8 @@ export default function Home() {
           >
             <div className="rounded-lg border border-border bg-surface px-6 py-4 shadow-card">
               <p className="font-serif text-base text-ink">
-                Weaving your journey through {j.destination || "the city"}
+                <StatusLine messages={JOURNEY_STATUS_MESSAGES} /> through{" "}
+                {j.destination || "the city"}
                 <span className="sr-only">, please wait</span>&hellip;
               </p>
             </div>
