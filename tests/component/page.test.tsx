@@ -70,20 +70,20 @@ describe("Home page", () => {
     render(<Home />);
     expect(screen.getByRole("heading", { level: 1, name: /wander/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/destination/i)).toBeInTheDocument();
-    // Vibe chips are exposed as radios inside a radiogroup so screen readers
-    // announce mutually-exclusive selection correctly.
+    // Vibe chips are exposed as toggle buttons with aria-pressed. Native
+    // <button> semantics + Tab navigation, no custom keyboard handling.
     for (const label of ["Heritage", "Food", "Arts", "Spiritual"]) {
-      expect(screen.getByRole("radio", { name: label })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: /generate journey/i })).toBeInTheDocument();
   });
 
-  it("marks the selected vibe chip as aria-checked", () => {
+  it("marks the selected vibe chip as aria-pressed", () => {
     render(<Home />);
-    const heritage = screen.getByRole("radio", { name: "Heritage" });
-    expect(heritage).toHaveAttribute("aria-checked", "true");
-    const food = screen.getByRole("radio", { name: "Food" });
-    expect(food).toHaveAttribute("aria-checked", "false");
+    const heritage = screen.getByRole("button", { name: "Heritage" });
+    expect(heritage).toHaveAttribute("aria-pressed", "true");
+    const food = screen.getByRole("button", { name: "Food" });
+    expect(food).toHaveAttribute("aria-pressed", "false");
   });
 
   it("exposes a skip-to-main-content link for keyboard users", () => {
@@ -140,8 +140,8 @@ describe("Home page", () => {
     await user.type(screen.getByLabelText(/destination/i), "Jaipur");
     await user.click(screen.getByRole("button", { name: /generate journey/i }));
 
-    const card = await screen.findByRole("button", { name: /amer fort/i });
-    await user.click(card);
+    const expandBtn = await screen.findByRole("button", { name: /expand deeper story for amer fort/i });
+    await user.click(expandBtn);
 
     await waitFor(() => {
       expect(fetchStub).toHaveBeenCalledWith(
@@ -150,5 +150,47 @@ describe("Home page", () => {
       );
     });
     expect(await screen.findByText(/stepwell keeps time/i)).toBeInTheDocument();
+  });
+
+  it("collapses an expanded card on second click without calling /api/deepen again", async () => {
+    const user = userEvent.setup();
+    const fetchStub = mockFetchSequence(
+      jsonResponse(journeyPayload),
+      jsonResponse(deepenPayload),
+    );
+
+    render(<Home />);
+    await user.type(screen.getByLabelText(/destination/i), "Jaipur");
+    await user.click(screen.getByRole("button", { name: /generate journey/i }));
+
+    const expandBtn = await screen.findByRole("button", { name: /expand deeper story for amer fort/i });
+    await user.click(expandBtn); // opens
+    await screen.findByText(/stepwell keeps time/i);
+    const initialCalls = fetchStub.mock.calls.length;
+
+    const collapseBtn = screen.getByRole("button", { name: /collapse deeper story for amer fort/i });
+    await user.click(collapseBtn); // closes
+    // No extra fetch — deepen response was cached in state.
+    expect(fetchStub).toHaveBeenCalledTimes(initialCalls);
+  });
+
+  it("surfaces the deepen error via the alert region without breaking the card", async () => {
+    const user = userEvent.setup();
+    mockFetchSequence(
+      jsonResponse(journeyPayload),
+      jsonResponse({ ok: false, error: "The storyteller is asleep." }, { status: 502 }),
+    );
+
+    render(<Home />);
+    await user.type(screen.getByLabelText(/destination/i), "Jaipur");
+    await user.click(screen.getByRole("button", { name: /generate journey/i }));
+
+    const expandBtn = await screen.findByRole("button", { name: /expand deeper story for amer fort/i });
+    await user.click(expandBtn);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/storyteller is asleep/i);
+    // Card is still there — the error didn't unmount the journey view.
+    expect(screen.getByRole("heading", { level: 2, name: /amer fort/i })).toBeInTheDocument();
   });
 });

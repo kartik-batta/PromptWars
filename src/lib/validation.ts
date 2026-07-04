@@ -20,10 +20,25 @@ export interface DeepenRequest {
   stop: JourneyStop;
 }
 
-const MAX_DESTINATION_LENGTH = 100;
+/** Max characters accepted for a destination. Enforced server-side. */
+export const MAX_DESTINATION_LENGTH = 100;
+
+/** Upper bound on the number of stops the server will return. */
+export const MAX_STOPS = 6;
 
 /**
- * Validate a `/api/journey` request body. Returns either the trimmed
+ * Neutralize control characters, tab, and any newline in the destination so
+ * a crafted value cannot break out of the user message and inject instructions
+ * into the system prompt (e.g. "Kyoto\n\nIgnore prior instructions"). Also
+ * collapses runs of whitespace and trims.
+ */
+export function sanitizeDestination(raw: string): string {
+  // eslint-disable-next-line no-control-regex
+  return raw.replace(/[\r\n\t\x00-\x1F\x7F]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Validate a `/api/journey` request body. Returns either the sanitized
  * destination and validated vibe, or a user-safe error with HTTP status.
  */
 export function parseJourneyRequest(body: unknown): ParseResult<JourneyRequest> {
@@ -31,7 +46,8 @@ export function parseJourneyRequest(body: unknown): ParseResult<JourneyRequest> 
     return { ok: false, error: "Invalid request body.", status: 400 };
   }
   const b = body as Record<string, unknown>;
-  const destination = typeof b.destination === "string" ? b.destination.trim() : "";
+  const destination =
+    typeof b.destination === "string" ? sanitizeDestination(b.destination) : "";
 
   if (!destination) {
     return { ok: false, error: "We need somewhere to wander.", status: 400 };
@@ -55,7 +71,8 @@ export function parseDeepenRequest(body: unknown): ParseResult<DeepenRequest> {
     return { ok: false, error: "Invalid request body.", status: 400 };
   }
   const b = body as Record<string, unknown>;
-  const destination = typeof b.destination === "string" ? b.destination.trim() : "";
+  const destination =
+    typeof b.destination === "string" ? sanitizeDestination(b.destination) : "";
   if (!destination) {
     return { ok: false, error: "Missing destination.", status: 400 };
   }

@@ -1,17 +1,21 @@
 /**
  * Baseline HTTP security headers applied to every route.
  *
- * Content-Security-Policy is intentionally strict:
- *   - default-src 'self'
- *   - Google Fonts (via next/font) requires fonts.gstatic.com + fonts.googleapis.com
- *   - inline styles allowed for Tailwind-generated hashes + next/font CSS
- *   - connect-src 'self' so the browser can call our /api/* routes
+ * `next/font/google` downloads fonts at BUILD TIME and serves them from
+ * `/_next/static/`, so we do NOT need to allowlist fonts.googleapis.com or
+ * fonts.gstatic.com in the CSP. That keeps the policy tighter.
+ *
+ *   - script-src / style-src: 'self' + 'unsafe-inline' — Next.js emits
+ *     inline `<script>` for its runtime and Tailwind emits inline styles.
+ *   - img-src includes `data:` for React's dev-only inline images.
+ *   - frame-ancestors 'none' + X-Frame-Options: DENY defends against
+ *     clickjacking on browsers that support only one of the two.
  */
 const CSP_DIRECTIVES = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
   "img-src 'self' data: blob:",
   "connect-src 'self'",
   "frame-ancestors 'none'",

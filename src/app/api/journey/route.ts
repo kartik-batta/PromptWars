@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { Journey, JourneyStop } from "@/lib/types";
 import { JOURNEY_SCHEMA } from "@/lib/schemas";
 import { JOURNEY_SYSTEM_BASE, VIBE_PERSONAS } from "@/lib/prompts";
-import { parseJourneyRequest } from "@/lib/validation";
+import { MAX_STOPS, parseJourneyRequest } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const stops: JourneyStop[] = raw.stops.slice(0, 6).map((s, i) => ({
+    const stops: JourneyStop[] = raw.stops.slice(0, MAX_STOPS).map((s, i) => ({
       ...s,
       id: `s${i}`,
     }));
