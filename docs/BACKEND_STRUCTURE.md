@@ -63,7 +63,7 @@ Response (error):
 { "ok": false, "error": "human-readable message" }
 ```
 
-Implementation: single OpenAI Responses API call with `response_format: json_schema` (see schema below).
+Implementation: single OpenAI `chat.completions.create` call with `response_format: { type: "json_schema", strict: true }` (see schema below). We use Chat Completions rather than the Responses API in this SDK version (`openai@4.63.0`) — Responses API SDK support has rough edges in 4.63.x, and Chat Completions with structured output has been rock-solid since April 2024.
 
 ### `POST /api/deepen`
 
@@ -82,7 +82,7 @@ Response:
 }
 ```
 
-Implementation: single OpenAI call with `gpt-4o-mini`, `response_format: json_schema`.
+Implementation: single OpenAI `chat.completions.create` call with `gpt-4o-mini`, `response_format: { type: "json_schema", strict: true }`.
 
 ## JSON schemas (source of truth)
 

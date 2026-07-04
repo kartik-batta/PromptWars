@@ -45,7 +45,7 @@ No component library (no shadcn, no MUI). Every component is hand-written from t
 | Primary model     | `gpt-4o` | Best storytelling quality for demo latency. |
 | Fallback model    | `gpt-4o-mini` | Cheap/fast — used for the "deepen card" second-tier call. |
 | SDK — Node/TS     | `openai@4.x` (pin exact minor on install) | Official client, native fetch, streams. |
-| API surface       | Responses API (`client.responses.create`) with `response_format: json_schema` | Structured output for the whole journey object. |
+| API surface       | `chat.completions.create` with `response_format: { type: "json_schema", strict: true }` | Chose Chat Completions over Responses API — SDK support in `openai@4.63.0` is battle-tested for Chat Completions structured output; Responses API support in this minor is patchy. |
 | Env var           | `OPENAI_API_KEY` | Vercel env var (Preview + Production). |
 | Max output tokens | Generate: `2048` · Deepen: `768` | Hard cap per call. |
 | Temperature       | `0.7` for narrative; `0.4` for the deepen call | High-enough for prose, low-enough to stay on-brief. |

@@ -51,3 +51,6 @@ CLAUDE.local.md
 coverage/
 .nyc_output/
 .pytest_cache/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
