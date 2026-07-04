@@ -1,121 +1,235 @@
 # BACKEND_STRUCTURE.md — Data Model & API
 
-Rule: model only what the demo path in `APP_FLOW.md` uses. Every extra field is a maintenance tax.
+Backend = Next.js Route Handlers. No separate service. Everything stateless.
 
-## Data model
+## Data model (client-side types, no DB)
 
-Keep entities to the minimum needed for the happy path. Add fields lazily.
+```ts
+// src/lib/types.ts
 
-### Entity: _____
+export type Vibe = "heritage" | "food" | "arts" | "spiritual";
 
-| Field | Type | Required | Notes |
-|-------|------|:--------:|-------|
-| id    | string / uuid | yes | Primary key |
-|       |      |          |       |
-|       |      |          |       |
+export interface JourneyStop {
+  id: string;                    // stable within a journey (uuid or index-based)
+  name: string;                  // e.g. "Hawa Mahal"
+  hook: string;                  // one-line teaser (≤ 90 chars)
+  narrative: string;             // ~40 words, first-person immersive
+  heritage_note: string;         // ~20 words on cultural/historical significance
+  hidden_gem_score: 1 | 2 | 3 | 4 | 5;   // 1 = famous, 5 = truly off the beaten path
+  nearby_experience: string;     // one local event OR authentic experience
+  // populated only after "deepen" call:
+  deep_narrative?: string;       // ~120 words
+  deep_heritage?: string;        // ~60 words
+}
 
-_(Repeat for each entity. Aim for ≤3 entities total.)_
+export interface Journey {
+  destination: string;
+  vibe: Vibe;
+  stops: JourneyStop[];          // 4–6 entries
+}
+```
+
+Total entities: 2 (`Journey`, `JourneyStop`). Nothing else.
 
 ## Storage
 
-Choose the simplest thing that survives the demo. Default in-memory unless the demo requires persistence across page reloads.
+**In-memory only.** Journey lives in the root page's React state. Reloading the page loses it. This is intentional (see `PRD.md` out-of-scope).
 
-- [ ] In-memory (JS map / Python dict) — restart loses everything
-- [ ] Single JSON file on disk
-- [ ] SQLite
-- [ ] Managed DB (only if Antigravity provides one out of the box)
+## API endpoints (only two)
 
-Justify anything beyond in-memory in one line.
+### `POST /api/journey`
 
-## API endpoints (only what the frontend calls)
+Generate a full journey.
 
-| Method | Path | Purpose | Request body | Response |
-|--------|------|---------|--------------|----------|
-| POST   | `/api/…` |     | `{ … }`      | `{ … }`  |
-| GET    | `/api/…` |     | —            | `{ … }`  |
-
-Rules:
-- No CRUD-for-CRUD's-sake — if the UI doesn't call it, don't build it.
-- All responses are JSON with shape `{ ok: true, data: … }` or `{ ok: false, error: "…" }`.
-- No pagination, filtering, or sorting query params unless the UI actually uses them.
-
-## AI integration — OpenAI
-
-All LLM calls go through OpenAI's official SDK per `docs/TECH_STACK.md`. Provider is OpenAI; **do not swap providers mid-build.**
-
-### Call sites
-
-| Location | Purpose | Prompt file / const | Model | Structured output? |
-|----------|---------|---------------------|-------|--------------------|
-|          |         |                     |       |                    |
-
-### Where prompts live
-
-- One file: `src/prompts/` (or `prompts.py` / `prompts.ts`). No inline multi-line strings scattered across handlers.
-- Each prompt is a **named constant** — `SUMMARIZE_SYSTEM`, `CLASSIFY_INTENT`, etc. — never `prompt1`.
-- Prompts reference `docs/PRD.md` scope explicitly. Include a line like: `Refuse anything not in the following list: [<paste in-scope list>].`
-
-### Standard OpenAI call shape (adapt to Python or Node)
-
-```python
-# Python — Responses API, structured output
-resp = client.responses.create(
-    model=MODEL,                          # from docs/TECH_STACK.md
-    input=[
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user",   "content": user_input},
-    ],
-    max_output_tokens=1024,
-    temperature=0.2,
-    response_format={
-        "type": "json_schema",
-        "json_schema": {"name": "Result", "schema": RESULT_SCHEMA, "strict": True},
-    },
-)
-result = resp.output_parsed        # already a validated dict — no JSON.loads guesswork
+Request:
+```json
+{ "destination": "Jaipur", "vibe": "heritage" }
 ```
+
+Response (200):
+```json
+{
+  "ok": true,
+  "data": {
+    "destination": "Jaipur",
+    "vibe": "heritage",
+    "stops": [ { "id": "...", "name": "...", "hook": "...", "narrative": "...", "heritage_note": "...", "hidden_gem_score": 4, "nearby_experience": "..." }, ... ]
+  }
+}
+```
+
+Response (error):
+```json
+{ "ok": false, "error": "human-readable message" }
+```
+
+Implementation: single OpenAI Responses API call with `response_format: json_schema` (see schema below).
+
+### `POST /api/deepen`
+
+Return deeper narrative + heritage for a single stop.
+
+Request:
+```json
+{ "destination": "Jaipur", "vibe": "heritage", "stop": { /* JourneyStop */ } }
+```
+
+Response:
+```json
+{
+  "ok": true,
+  "data": { "deep_narrative": "...", "deep_heritage": "..." }
+}
+```
+
+Implementation: single OpenAI call with `gpt-4o-mini`, `response_format: json_schema`.
+
+## JSON schemas (source of truth)
 
 ```ts
-// Node/TS — Responses API, structured output (via SDK zod helper if available)
-const resp = await client.responses.create({
-  model: MODEL,
-  input: [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user",   content: userInput },
-  ],
-  max_output_tokens: 1024,
-  temperature: 0.2,
-  response_format: { type: "json_schema", json_schema: { name: "Result", schema: RESULT_SCHEMA, strict: true } },
-});
-const result = resp.output_parsed;
+// src/lib/schemas.ts
+
+export const JOURNEY_SCHEMA = {
+  type: "object",
+  properties: {
+    stops: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          hook: { type: "string" },
+          narrative: { type: "string" },
+          heritage_note: { type: "string" },
+          hidden_gem_score: { type: "integer", minimum: 1, maximum: 5 },
+          nearby_experience: { type: "string" },
+        },
+        required: ["name", "hook", "narrative", "heritage_note", "hidden_gem_score", "nearby_experience"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["stops"],
+  additionalProperties: false,
+} as const;
+
+export const DEEPEN_SCHEMA = {
+  type: "object",
+  properties: {
+    deep_narrative: { type: "string" },
+    deep_heritage:  { type: "string" },
+  },
+  required: ["deep_narrative", "deep_heritage"],
+  additionalProperties: false,
+} as const;
 ```
 
-### Rules
+The server assigns `id` values after the LLM returns (index-based `s0`, `s1`, …). The LLM does not generate ids.
 
-- One prompt does one job. Split anything longer than ~30 lines.
-- **Every call the UI parses uses `response_format` with a JSON schema.** No regex-parsing model output on the demo path.
-- Log every prompt + response to stdout during dev. Grep-able > pretty.
-- Hard cap `max_output_tokens` on every call (see `docs/TECH_STACK.md`). A runaway loop can burn the whole build window in one session.
-- Timeout every request at 20s (SDK client config). Retry once, then surface a user-visible error.
-- Never fan out concurrent LLM calls on the demo path — one call, one loading state, one result.
-- Reasoning models (`o4-mini` / `o3`) only where the happy-path proves they help. They are slower on stage.
+## Prompts — layout and rules
 
-### Secrets
+All prompts live in **one file: `src/lib/prompts.ts`**. No inline prompts in handlers.
 
-- `OPENAI_API_KEY` in the environment. Load once at boot; never log it, never send it to the frontend.
-- If Antigravity provides a secrets pane, store it there. Otherwise `.env` file that is git-ignored.
+```ts
+// src/lib/prompts.ts
+
+export const JOURNEY_SYSTEM_BASE = `
+You are Wander, a cultural travel storyteller. Your one job is to produce a 4–6 stop journey through a destination
+that lets a curious traveler feel the city's soul in 24–48 hours.
+
+You may only produce content in these categories:
+- attractions with cultural significance
+- hidden gems (score them honestly on off-the-beaten-path 1–5)
+- immersive first-person narrative (sensory, evocative, ~40 words per stop)
+- heritage notes (historical or cultural significance, ~20 words)
+- one nearby local event or authentic experience per stop
+
+Refuse politely if the input is not a real place, a slur, or a request outside these categories.
+
+Bias toward:
+- lesser-known corners the average tourist misses
+- specific sensory detail (smells, sounds, textures) over generic praise
+- respect for local culture — no exoticizing language
+
+Return JSON matching the provided schema exactly.
+`;
+
+export const VIBE_PERSONAS: Record<Vibe, string> = {
+  heritage: `Voice: a historian-storyteller. Weave stone, dynasty, and ritual into every stop.`,
+  food:     `Voice: a hungry local. Center meals, markets, and the stories in a spice tin.`,
+  arts:     `Voice: an artist-in-residence. Center crafts, live music, murals, and studios.`,
+  spiritual:`Voice: a quiet pilgrim. Center thresholds, silence, ritual, and light.`,
+};
+
+export const DEEPEN_SYSTEM = `
+You are Wander, continuing a story you already began. Given a single stop from a journey, write:
+- a longer immersive narrative (~120 words, first-person, present tense, sensory)
+- a deeper heritage or cultural context (~60 words)
+
+Match the vibe/persona used in the original journey. Do not invent new stops.
+
+Return JSON matching the provided schema exactly.
+`;
+```
+
+Rules that apply to every prompt:
+
+- One prompt, one job. `JOURNEY_SYSTEM_BASE` produces the journey; `DEEPEN_SYSTEM` expands one stop. Nothing else.
+- The vibe is a **persona swap** on top of the base prompt — not a code branch. Compose at call time: `system = JOURNEY_SYSTEM_BASE + "\n\n" + VIBE_PERSONAS[vibe]`.
+- Never inject user input inside triple-backticks in the system prompt. Destination goes in the user message.
+- Cap tokens per `TECH_STACK.md`. No unbounded generation.
+
+## Standard call shape (copy into handler)
+
+```ts
+// src/app/api/journey/route.ts
+import OpenAI from "openai";
+import { JOURNEY_SYSTEM_BASE, VIBE_PERSONAS } from "@/lib/prompts";
+import { JOURNEY_SCHEMA } from "@/lib/schemas";
+
+const client = new OpenAI({ timeout: 25_000, maxRetries: 1 });
+
+export async function POST(req: Request) {
+  const { destination, vibe } = await req.json();
+
+  // TODO validate destination is a non-empty string ≤ 100 chars; vibe ∈ VIBE_PERSONAS keys.
+
+  const resp = await client.responses.create({
+    model: "gpt-4o",
+    input: [
+      { role: "system", content: `${JOURNEY_SYSTEM_BASE}\n\n${VIBE_PERSONAS[vibe]}` },
+      { role: "user",   content: `Destination: ${destination}` },
+    ],
+    max_output_tokens: 2048,
+    temperature: 0.7,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "Journey", schema: JOURNEY_SCHEMA, strict: true },
+    },
+  });
+
+  const parsed = resp.output_parsed as { stops: Array<Omit<JourneyStop, "id">> };
+  const stops = parsed.stops.map((s, i) => ({ ...s, id: `s${i}` }));
+
+  return Response.json({ ok: true, data: { destination, vibe, stops } });
+}
+```
 
 ## Secrets
 
-- Store in environment variables. Never commit.
-- If Antigravity provides a secrets UI, use it.
-- Document which env vars the app needs in `TECH_STACK.md`.
+- `OPENAI_API_KEY` — set once in Vercel Project Settings → Environment Variables (Production + Preview).
+- Locally: `.env.local` with `OPENAI_API_KEY=sk-...` (git-ignored).
+- Never referenced from client code. All OpenAI calls happen in `/api/*` route handlers.
 
 ## Explicit bans
 
 - ❌ Authentication middleware
-- ❌ Rate limiting (unless the LLM provider forces us)
-- ❌ Caching layers
-- ❌ Message queues / background jobs
-- ❌ Migrations framework (schema fits in one file)
+- ❌ Rate limiting (OpenAI's own is enough for a demo)
+- ❌ Redis / caching layer
+- ❌ Background jobs / queues
 - ❌ Any endpoint the UI doesn't call
+- ❌ Streaming tokens to the client (status line is client-side simulated)
+- ❌ Function calling / tool use (single structured-output call is enough)
+- ❌ External APIs beyond OpenAI
